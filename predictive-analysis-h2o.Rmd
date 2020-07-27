@@ -1,0 +1,109 @@
+---
+title: "predictive-analysis-H2O"
+author: "Dipan Sadekeen"
+date: "7/26/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+```{r}
+# Task 2: Import Libraries
+ library(tidyverse)
+library(readxl)
+library(h2o)
+h2o.init()
+```
+
+```{r}
+# Task 3: Read the Excel Sheets
+path<-"A:/Workspace/Study Works/R/P2_Predict Diabetes/Detect Diabetes using rf/Predictive-analysis-H2O/UCI_bank_marketing.xlsx"
+sheets<-excel_sheets("A:/Workspace/Study Works/R/P2_Predict Diabetes/Detect Diabetes using rf/Predictive-analysis-H2O/UCI_bank_marketing.xlsx")
+
+```
+
+
+```{r}
+# Task 3.1: Explore Data in each Sheet
+sheets%>%
+  map(~read_excel(path=path,sheet=.))%>%
+  set_names(sheets)
+```
+
+
+```{r}
+# Task 3.2: Join Data by ID Column (VLOOKUP Equivalent)
+data_joined<-sheets[4:7] %>%
+  map(~read_excel(path = path,sheet = .))%>%
+  reduce(left_join)
+table(data_joined$TERM_DEPOSIT)
+
+```
+
+```{r}
+# Task 4: Start H2O Cluster
+h2o.init(max_mem_size = "4g")
+
+```
+
+```{r}
+# Task 4.1: Data Preparation
+data_joined<-data_joined%>%
+  mutate_if(is.character,as.factor)
+    
+  
+
+
+
+train<-as.h2o(data_joined)
+
+y<-"TERM_DEPOSIT" #train[,y]<-as.factor(train[,y])
+
+x<-setdiff(names(train),c(y,"ID")) #train except those two cols
+```
+
+```{r}
+# Task 5: H2O AutoML Training
+
+aml<-h2o.automl(
+  x=x,
+  y=y,
+  training_frame = train,
+  max_runtime_secs = 600,#max_model=20 an hour might take
+  balance_classes=TRUE #exclude_algs,sort_metric="logloss"
+)
+
+
+
+
+```
+
+```{r}
+# Task 6: View AutoML Leaderboard
+lb<-aml@leaderboard
+print(lb, n=nrow(lb))
+
+
+```
+
+```{r}
+# 6.1 Ensemble Exploration ----
+
+model_ids<- as.data.frame(aml@leaderboard$model)[,1]
+
+gbm<-h2o.getModel(grep("GBM_grid__1",model_ids,value=TRUE)[1])
+
+#metalearner<-h2o.getModel(se@model$metalearner$name)
+
+#h2o.varimp(metalearner)
+#xgb<-h2o.getModel(grep("XGBoost",model_ids,value = TRUE)[1])
+
+h2o.varimp(gbm)
+h2o.varimp_plot(gbm)
+
+```
+
